@@ -1,0 +1,9 @@
+# Terraform Files
+.terraform
+terraform.tfstate
+*.tfvars
+terraform.tfstate.backup
+
+# Generated Files
+user-*.tf
+encrypted_password.*.txt

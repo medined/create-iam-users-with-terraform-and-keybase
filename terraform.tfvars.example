@@ -1,0 +1,2 @@
+aws_profile_name        = "bluejay"
+region                  = "us-east-1"
