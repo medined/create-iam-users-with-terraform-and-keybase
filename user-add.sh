@@ -2,35 +2,35 @@
 
 IAM_USER=$1
 KEYBASE_ACCOUNT=$2
-IAM_ROLE=$3
+IAM_GROUP=$3
 
 if [ -z $IAM_USER ]
 then
-  echo "Usage: $0 <iam_user> <keybase_account> <iam_role>"
+  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
   echo "  Missing iam user parameter."
   exit 1
 fi
 
 if [ -z $KEYBASE_ACCOUNT ]
 then
-  echo "Usage: $0 <iam_user> <keybase_account> <iam_role>"
+  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
   echo "  Missing keybase account parameter."
   exit 1
 fi
 
-if [ -z $IAM_ROLE ]
+if [ -z $IAM_GROUP ]
 then
-  echo "Usage: $0 <iam_user> <keybase_account> <iam_role>"
-  echo "  Missing iam role parameter."
+  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
+  echo "  Missing iam group parameter."
   exit 1
 fi
 
-VALID_IAM_ROLES="administrators,console_users,developers"
+VALID_IAM_GROUPS="administrators,console_users,developers"
 
-echo $VALID_IAM_ROLES | grep $IAM_ROLE
+echo $VALID_IAM_GROUPS | grep $IAM_GROUP
 if [ $? != 0 ]
 then
-  echo "Invalid IAM Role. Please use one of these: $VALID_IAM_ROLES"
+  echo "Invalid IAM Group. Please use one of these: $VALID_IAM_GROUPS"
   exit 1
 fi
 
@@ -55,7 +55,7 @@ resource "aws_iam_group_membership" "$IAM_USER" {
   users = [
     aws_iam_user.$IAM_USER.name
   ]
-  group = aws_iam_group.$IAM_ROLE.name
+  group = aws_iam_group.$IAM_GROUP.name
 }
 resource "local_file" "${IAM_USER}_password" {
   sensitive_content = "-----BEGIN PGP MESSAGE-----\nComment: https://keybase.io/download\nVersion: Keybase Go 1.0.10 (linux)\n\n\${aws_iam_user_login_profile.davidm.encrypted_password}\n-----END PGP MESSAGE-----\n"
