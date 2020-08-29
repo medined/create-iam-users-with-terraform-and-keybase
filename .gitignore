@@ -5,5 +5,9 @@ terraform.tfstate
 terraform.tfstate.backup
 
 # Generated Files
-user-*.tf
+iam-group-membership.tf
 encrypted_password.*.txt
+iam-user-*.tf
+
+# Project Files
+accounts.txt

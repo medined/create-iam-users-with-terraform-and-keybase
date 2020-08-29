@@ -1,0 +1,6 @@
+#aws_account,keybase_account,group
+admin,medined,administrators
+programmer01,medined,developers
+programmer02,medined,developers
+tester01,medined,console_users
+tester02,medined,console_users

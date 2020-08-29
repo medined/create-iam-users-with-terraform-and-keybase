@@ -1,43 +1,38 @@
 #!/bin/bash
 
-IAM_USER=$1
-KEYBASE_ACCOUNT=$2
-IAM_GROUP=$3
+#
+# A script this complex should be written in Python so that the list of
+# valid IAM groups could be automatically generated from the
+# iam-groups.tf file.
+#
 
-if [ -z $IAM_USER ]
-then
-  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
-  echo "  Missing iam user parameter."
-  exit 1
-fi
-
-if [ -z $KEYBASE_ACCOUNT ]
-then
-  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
-  echo "  Missing keybase account parameter."
-  exit 1
-fi
-
-if [ -z $IAM_GROUP ]
-then
-  echo "Usage: $0 <iam_user> <keybase_account> <IAM_GROUP>"
-  echo "  Missing iam group parameter."
-  exit 1
-fi
+# Remove the set of user files. This will ensure that users removed from
+# the accounts.txt file are also deleted from AWS.
+rm -f iam-group-membership.tf iam-user-*.if
 
 VALID_IAM_GROUPS="administrators,console_users,developers"
 
-echo $VALID_IAM_GROUPS | grep $IAM_GROUP
-if [ $? != 0 ]
-then
-  echo "Invalid IAM Group. Please use one of these: $VALID_IAM_GROUPS"
-  exit 1
-fi
+for LINE in $(cat accounts.txt)
+do
+  echo "$LINE" | grep --silent "^#"
+  [[ $? == 0 ]] && continue
+  IAM_USER=$(echo $LINE | cut -d',' -f1)
+  KEYBASE_ACCOUNT=$(echo $LINE | cut -d',' -f2)
+  IAM_GROUP=$(echo $LINE | cut -d',' -f3)
 
-BANNER=$(figlet -f standard $(echo $IAM_USER | tr '[:lower:]' '[:upper:]') | sed -e 's/^/# /')
-USER_TF_FILE="user-$IAM_USER.tf"
+  echo $VALID_IAM_GROUPS | grep --silent $IAM_GROUP
+  if [ $? != 0 ]
+  then
+    echo "Invalid IAM Group. Please use one of these: $VALID_IAM_GROUPS"
+    exit 1
+  fi
 
-cat <<EOF > $USER_TF_FILE
+  BANNER=$(figlet -f standard $(echo $IAM_USER | tr '[:lower:]' '[:upper:]') | sed -e 's/^/# /')
+  USER_TF_FILE="iam-user-$IAM_USER.tf"
+
+  echo "Processed: $IAM_USER"
+
+  cat <<EOF > $USER_TF_FILE
 $BANNER
 
 resource "aws_iam_user" "$IAM_USER" {
@@ -50,18 +45,73 @@ resource "aws_iam_user_login_profile" "$IAM_USER" {
   user    = aws_iam_user.$IAM_USER.id
   pgp_key = "keybase:$KEYBASE_ACCOUNT"
 }
-resource "aws_iam_group_membership" "$IAM_USER" {
-  name = "group-membership-$IAM_USER"
-  users = [
-    aws_iam_user.$IAM_USER.name
-  ]
-  group = aws_iam_group.$IAM_GROUP.name
-}
 resource "local_file" "${IAM_USER}_password" {
-  sensitive_content = "-----BEGIN PGP MESSAGE-----\nComment: https://keybase.io/download\nVersion: Keybase Go 1.0.10 (linux)\n\n\${aws_iam_user_login_profile.davidm.encrypted_password}\n-----END PGP MESSAGE-----\n"
+  sensitive_content = "-----BEGIN PGP MESSAGE-----\nComment: https://keybase.io/download\nVersion: Keybase Go 1.0.10 (linux)\n\n\${aws_iam_user_login_profile.${IAM_USER}.encrypted_password}\n-----END PGP MESSAGE-----\n"
   filename = "encrypted_password.$IAM_USER.txt"
   file_permission = "0600"
 }
 EOF
 
-cat $USER_TF_FILE
+done
+
+ADMINISTRATORS=""
+CONSOLE_USERS=""
+DEVELOPERS=""
+
+for LINE in $(cat accounts.txt)
+do
+  echo "$LINE" | grep --silent "^#"
+  [[ $? == 0 ]] && continue
+  IAM_USER=$(echo $LINE | cut -d',' -f1)
+  KEYBASE_ACCOUNT=$(echo $LINE | cut -d',' -f2)
+  IAM_GROUP=$(echo $LINE | cut -d',' -f3)
+
+  if [ $IAM_GROUP == "administrators" ]; then
+    if [ "$ADMINISTRATORS" == "" ]; then
+      ADMINISTRATORS="aws_iam_user.$IAM_USER.name"
+    else
+      ADMINISTRATORS="$ADMINISTRATORS,aws_iam_user.$IAM_USER.name"
+    fi
+  fi
+
+  if [ $IAM_GROUP == "console_users" ]; then
+    if [ "$CONSOLE_USERS" == "" ]; then
+      CONSOLE_USERS="aws_iam_user.$IAM_USER.name"
+    else
+      CONSOLE_USERS="$CONSOLE_USERS,aws_iam_user.$IAM_USER.name"
+    fi
+  fi
+
+  if [ $IAM_GROUP == "developers" ]; then
+    if [ "$DEVELOPERS" == "" ]; then
+      DEVELOPERS="aws_iam_user.$IAM_USER.name"
+    else
+      DEVELOPERS="$DEVELOPERS,aws_iam_user.$IAM_USER.name"
+    fi
+  fi
+
+done
+
+cat <<EOF > iam-group-membership.tf
+resource "aws_iam_group_membership" "administrators" {
+  name = "group-membership-administrators"
+  users = [
+    $ADMINISTRATORS
+  ]
+  group = aws_iam_group.administrators.name
+}
+resource "aws_iam_group_membership" "console_users" {
+  name = "group-membership-console-users"
+  users = [
+    $CONSOLE_USERS
+  ]
+  group = aws_iam_group.console_users.name
+}
+resource "aws_iam_group_membership" "developers" {
+  name = "group-membership-developers"
+  users = [
+    $DEVELOPERS
+  ]
+  group = aws_iam_group.developers.name
+}
+EOF
